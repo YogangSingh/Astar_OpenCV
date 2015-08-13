@@ -1,0 +1,257 @@
+#include <cstdio>
+#include <opencv2/opencv.hpp>
+#include <cmath>
+#include <list>
+#include <queue>
+#include <map>
+#include <set>
+#include <ctime>
+#include <climits>
+#define WALLR 0
+//the magnifying multiplier of the image shown
+#define MUL 10
+//enables visual feedback during the execution of the algorithm. is SLOW
+#define VISUAL_DEBUG
+
+using namespace cv;
+using namespace std;
+
+//integer based 2d points with additional A* related stuff
+class Point2A {
+public:
+	int x = 0;
+	int y = 0;
+	int fScore = 0;
+	Point2A() {
+		this->x = 0; this->y = 0;
+	}
+	Point2A(int x, int y) {
+		this->x = x; this->y = y;
+	}
+	Point2A(int x, int y, int f) {
+		this->x = x; this->y = y; this->fScore = f;
+	}
+	bool operator==(const Point2A other) const {
+
+		return (this->x == other.x) && (this->y == other.y);
+	}
+	friend ostream& operator<< (ostream &out, Point2A &p);
+};
+
+//output operator
+ostream& operator<< (ostream &out, Point2A &p) {
+
+	out << "x=" << p.x << " y=" << p.y;
+	return out;
+}
+
+//comparsion by fScore, needed for stl containers
+bool operator<(const Point2A a, const Point2A b) {
+
+	return a.fScore > b.fScore;
+}
+
+//another comparsion method, used in map<...> cameFrom
+struct CompByPos {
+
+	bool operator()(const Point2A a, const Point2A b) {
+
+		if (a.x == b.x)
+			return a.y > b.y;
+		else
+			return a.x > b.x;
+	}
+};
+
+//integer rounded pythagorean point-distance-calculation
+int dist(Point2A a, Point2A b) {
+
+	double x = (a.x - b.x);
+	double y = (a.y - b.y);
+	return (int)(sqrt(x*x + y*y));
+}
+
+//creates/refreshes and shows the image got
+void refreshImg(Mat img) {
+
+	resize(img, img, img.size()* MUL, 0, 0, 0);
+	imshow("Pathfinding", img);
+}
+
+//this function returns an array of the four points nearby
+Point2A* getNeighbors(Point2A p) {
+
+	Point2A* ret = new Point2A[4];
+	ret[0] = Point2A(p.x - 1, p.y);
+	ret[1] = Point2A(p.x, p.y + 1);
+	ret[2] = Point2A(p.x + 1, p.y);
+	ret[3] = Point2A(p.x, p.y - 1);
+	return ret;
+}
+
+//the main algorithm
+void PathFind(Mat &img, Point2A start, Point2A destination) {
+
+	
+	//size of the map
+	const int rows = img.rows;
+	const int cols = img.cols;
+
+	//check if the start and destination are on the map and are not wall
+	if (start.x < 0 || start.y < 0 || start.x >= cols || start.y >= rows || destination.x < 0 || destination.y < 0 || destination.x >= cols || destination.y >= rows || img.at<Vec3b>(start.y, start.x)[2] == WALLR || img.at<Vec3b>(destination.y, destination.x)[2] == WALLR) {
+		cout << "input error" << endl;
+		return;
+	}
+
+	//color const
+	const Vec3b red = Vec3b(0, 0, 255), gray = Vec3b(128, 128, 128), blue = Vec3b(255, 0, 0);
+
+	//create and allocate arrays
+	int **closedSet = new int*[rows];
+	int **openSet = new int*[rows];
+	for (int i = 0; i < rows; i++) {
+
+		closedSet[i] = new int[cols];
+		openSet[i] = new int[cols];
+		for (int j = 0;j < cols;j++) {
+
+			closedSet[i][j] = 0;
+			openSet[i][j] = -1;
+		}
+	}
+	priority_queue<Point2A> openSetQue[2];
+	int osq = 0;
+	map<Point2A, Point2A, CompByPos> cameFrom;
+
+	start.fScore = dist(start, destination);
+	openSetQue[osq].push(start);
+	openSet[start.y][start.x] = 0;
+
+	while (openSetQue[osq].size() != 0) {
+
+		Point2A current = openSetQue[osq].top();
+		if (current == destination) {
+			
+			while (cameFrom.size() != 0) {
+
+				img.at<Vec3b>(current.y, current.x) = red;
+				auto it = cameFrom.find(current);
+				Point2A keytmp = current;
+				if (it == cameFrom.end()) {
+
+					return;
+				}
+				current = cameFrom[current];
+				cameFrom.erase(keytmp);
+			}
+			return;
+		}
+		openSetQue[osq].pop();
+		closedSet[current.y][current.x] = 1;
+		
+#ifdef VISUAL_DEBUG
+		img.at<Vec3b>(current.y, current.x) = gray;
+		refreshImg(img);
+		waitKey(1);
+#endif
+		Point2A *neighbors = getNeighbors(current);
+		//for each neighbor
+		for (int i = 0; i < 4; i++) {
+
+			Point2A neighbor = neighbors[i];
+
+			if (neighbor.x < 0 || neighbor.x >= img.cols || neighbor.y < 0 || neighbor.y >= img.rows || closedSet[neighbor.y][neighbor.x] == 1)
+				continue;
+			
+			if (img.at<Vec3b>(neighbor.y, neighbor.x)[2] == WALLR) {
+
+				closedSet[neighbor.y][neighbor.x] = 1;
+				continue;
+			}
+			int ngScore = openSet[current.y][current.x]++;
+			if (openSet[neighbor.y][neighbor.x] == -1 || ngScore < openSet[neighbor.y][neighbor.x]) {
+
+				cameFrom[neighbor] = current;
+				neighbor.fScore = ngScore + dist(neighbor, destination);
+
+				if (openSet[neighbor.y][neighbor.x] == -1) {
+					openSet[neighbor.y][neighbor.x] = ngScore;
+					openSetQue[osq].push(neighbor);
+#ifdef VISUAL_DEBUG
+					img.at<Vec3b>(neighbor.y, neighbor.x) = blue;
+					refreshImg(img);
+					waitKey(1);
+#endif
+				}
+				else {
+					openSet[neighbor.y][neighbor.x] = openSet[current.y][current.x]++;
+					while (!(openSetQue[osq].top() == neighbor)) {
+
+						openSetQue[1 - osq].push(openSetQue[osq].top());
+						openSetQue[osq].pop();
+					}
+					openSetQue[osq].pop();
+					if (openSetQue[osq].size() >= openSetQue[1 - osq].size()) {
+						osq = 1 - osq;
+					}
+					while (!openSetQue[osq].empty()) {
+						openSetQue[1-osq].push(openSetQue[osq].top());
+						openSetQue[osq].pop();
+					}
+					osq = 1 - osq;
+					openSetQue[osq].push(neighbor);
+				}
+			}
+		}
+		delete neighbors;
+	}
+	cout << "did not find a path" << endl;
+}
+
+Point2A *start, *destination;
+
+void DetectMouseClick(int event, int x, int y, int flags, void* userdata) {
+
+	switch (event)
+	{
+	case EVENT_LBUTTONUP:
+		start = new Point2A(x, y);
+		start->x /= MUL;
+		start->y /= MUL;
+		cout << "start point: " << *start << endl;
+		if (destination != NULL)
+			cout << "press any key to continue" << endl;
+		break;
+	case EVENT_RBUTTONUP:
+		destination = new Point2A(x, y);
+		destination->x /= MUL;
+		destination->y /= MUL;
+		cout << "destination point " << *destination << endl;
+		if(start != NULL)
+			cout << "press any key to continue" << endl;
+		break;
+	default:
+		break;
+	}
+}
+
+
+int main() {
+	
+	Mat img = imread("test2.png");
+	Mat bigimg;
+	refreshImg(img);
+	setMouseCallback("Pathfinding", DetectMouseClick);
+	waitKey(0);
+	if (start == NULL || destination == NULL)
+		return 0;
+	clock_t startT = clock();
+	PathFind(img, *start, *destination);
+	clock_t endT = clock();
+	cout << "time of algorithm: " << endT - startT << " ms"<<endl;
+	refreshImg(img);
+	
+	waitKey(0);
+	delete start; delete destination;
+	return 0;
+}
