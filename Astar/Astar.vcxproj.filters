@@ -44,6 +44,12 @@
     <Image Include="..\..\Útvonal kereső teknős\kornelmap.tif">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="kornelmap.tif">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="kornel.tif">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Text Include="save1.txt">
