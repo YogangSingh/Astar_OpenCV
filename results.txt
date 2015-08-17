@@ -1,0 +1,23 @@
+test.png
+start(1,1)
+destination (39, 53)
+
+MAGIC 0.f
+	time:	8	7	7
+	noQ:	286	286	286
+	
+MAGIC 0.05f
+	time:	7	8	7
+	noQ:	286	286	286
+	
+MAGIC 0.1f
+	time:	7	7	7
+	noQ:	283	283	283
+	
+MAGIC 0.3f
+	time:	7	6	7
+	noQ: 292
+	
+MAGIC 0.6f
+	time:	14	14	14
+	noQ:	2302
